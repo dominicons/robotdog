@@ -37,12 +37,11 @@ void Robot::standStill() {
 void Robot::walkForward(int stepDelay) {
     // Bước 1: Chân trái trước + phải sau nâng
     setServoAngle(servoChannels[0][0], vaiTrungTinh[0]);  // Vai trái trước trung tính
-    setServoAngle(servoChannels[0][1], khuyuTrungTinh[0] +20); // Khuỷu nâng
-    setServoAngle(servoChannels[0][2], dauGoiTrungTinh[0] -20);
-    setServoAngle(servoChannels[0][1], khuyuTrungTinh[0] -20); // Khuỷu nâng
-    setServoAngle(servoChannels[0][2], dauGoiTrungTinh[0] +20);
+    setServoAngle(servoChannels[0][1], khuyuTrungTinh[0] +15); // Khuỷu nâng
+    setServoAngle(servoChannels[0][2], dauGoiTrungTinh[0] -25);
+    setServoAngle(servoChannels[0][1], khuyuTrungTinh[0] -25); // Khuỷu nâng
+    setServoAngle(servoChannels[0][2], dauGoiTrungTinh[0] +25);
 
- // Đầu gối gập
     setServoAngle(servoChannels[3][0], vaiTrungTinh[3]);  // Vai phải sau trung tính
     setServoAngle(servoChannels[3][1], khuyuTrungTinh[3] + 10); // Khuỷu nâng
     setServoAngle(servoChannels[3][2], dauGoiTrungTinh[3] - 10); // Đầu gối gập

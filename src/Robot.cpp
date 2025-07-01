@@ -1,13 +1,14 @@
 #include "Robot.h"
 #include <Wire.h>
 #include <Arduino.h>
+#include <math.h>
 
-// Hiệu chỉnh trung tính từng khớp cho từng chân (bạn hãy thay đổi các giá trị này cho đến khi robot đứng thẳng thật sự)
-const int vaiTrungTinh[4]    = {90, 45, 90, 90}; // Chân trước phải (leg=1) chỉnh lại vai, ví dụ 110 độ
+// Hiệu chỉnh trung tính từng khớp cho từng chân
+const int vaiTrungTinh[4]    = {90, 45, 90, 90};
 const int khuyuTrungTinh[4]  = {90, 90, 90, 90};
 const int dauGoiTrungTinh[4] = {90, 90, 90, 90};
 
-Robot::Robot() : pwm(Adafruit_PWMServoDriver()) {
+Robot::Robot() : pwm(Adafruit_PWMServoDriver()), pitchErrorSum(0), rollErrorSum(0), lastPitchError(0), lastRollError(0), lastTime(0) {
     int tmp[4][3] = {{0,1,2},{3,4,5},{6,7,8},{9,10,11}};
     memcpy(servoChannels, tmp, sizeof(servoChannels));
 }
@@ -16,7 +17,8 @@ void Robot::begin() {
     Wire.begin();
     pwm.begin();
     pwm.setPWMFreq(50);
-    standStill(); // Đặt robot về tư thế đứng yên an toàn khi khởi động
+    lastTime = millis();
+    standStill();
 }
 
 void Robot::setServoAngle(int channel, int angle) {
@@ -25,8 +27,18 @@ void Robot::setServoAngle(int channel, int angle) {
     pwm.setPWM(channel, 0, pulse);
 }
 
+void Robot::smoothMove(int channel, int startAngle, int endAngle, int duration) {
+    int steps = 50; // Tăng số bước để mượt mà hơn
+    float stepDuration = duration / (float)steps;
+    for (int i = 0; i <= steps; i++) {
+        float t = i / (float)steps;
+        float angle = startAngle + (endAngle - startAngle) * (0.5 - 0.5 * cos(t * PI)); // Sử dụng cos để chuyển động mượt
+        setServoAngle(channel, (int)angle);
+        delay(stepDuration);
+    }
+}
+
 void Robot::standStill() {
-    // Đặt từng khớp về giá trị trung tính đã hiệu chỉnh
     for (int leg = 0; leg < 4; leg++) {
         setServoAngle(servoChannels[leg][0], vaiTrungTinh[leg]);
         setServoAngle(servoChannels[leg][1], khuyuTrungTinh[leg]);
@@ -35,224 +47,191 @@ void Robot::standStill() {
 }
 
 void Robot::walkForward(int stepDelay) {
-    // Bước 1: Chân trái trước + phải sau nâng
-    setServoAngle(servoChannels[0][0], vaiTrungTinh[0]);  // Vai trái trước trung tính
-    setServoAngle(servoChannels[0][1], khuyuTrungTinh[0] +15); // Khuỷu nâng
-    setServoAngle(servoChannels[0][2], dauGoiTrungTinh[0] -25);
-    setServoAngle(servoChannels[0][1], khuyuTrungTinh[0] -25); // Khuỷu nâng
-    setServoAngle(servoChannels[0][2], dauGoiTrungTinh[0] +25);
-
-    setServoAngle(servoChannels[3][0], vaiTrungTinh[3]);  // Vai phải sau trung tính
-    setServoAngle(servoChannels[3][1], khuyuTrungTinh[3] + 10); // Khuỷu nâng
-    setServoAngle(servoChannels[3][2], dauGoiTrungTinh[3] - 10); // Đầu gối gập
-    setServoAngle(servoChannels[1][0], vaiTrungTinh[1]);  // Vai phải trước trung tính
-    setServoAngle(servoChannels[1][1], khuyuTrungTinh[1]);  // Khuỷu giữ thẳng
-    setServoAngle(servoChannels[1][2], dauGoiTrungTinh[1]);  // Đầu gối giữ thẳng
-    setServoAngle(servoChannels[2][0], vaiTrungTinh[2]);  // Vai trái sau trung tính
-    setServoAngle(servoChannels[2][1], khuyuTrungTinh[2]);  // Khuỷu giữ thẳng
-    setServoAngle(servoChannels[2][2], dauGoiTrungTinh[2]);  // Đầu gối giữ thẳng
-    delay(stepDelay);
-
-    // Bước 2: Chân trái trước + phải sau hạ
-    setServoAngle(servoChannels[0][0], vaiTrungTinh[0]);
-    setServoAngle(servoChannels[0][1], khuyuTrungTinh[0]);
-    setServoAngle(servoChannels[0][2], dauGoiTrungTinh[0]);
-    setServoAngle(servoChannels[3][0], vaiTrungTinh[3]);
-    setServoAngle(servoChannels[3][1], khuyuTrungTinh[3]);
-    setServoAngle(servoChannels[3][2], dauGoiTrungTinh[3]);
-    setServoAngle(servoChannels[1][0], vaiTrungTinh[1]);
-    setServoAngle(servoChannels[2][0], vaiTrungTinh[2]);
-    delay(stepDelay);
-
-    // Bước 3: Chân phải trước + trái sau nâng
-    setServoAngle(servoChannels[1][0], vaiTrungTinh[1]);
-    setServoAngle(servoChannels[1][1], khuyuTrungTinh[1] + 10);
-    setServoAngle(servoChannels[1][2], dauGoiTrungTinh[1] - 10);
-    setServoAngle(servoChannels[2][0], vaiTrungTinh[2]);
-    setServoAngle(servoChannels[2][1], khuyuTrungTinh[2] + 10);
-    setServoAngle(servoChannels[2][2], dauGoiTrungTinh[2] - 10);
-    setServoAngle(servoChannels[0][0], vaiTrungTinh[0]);
-    setServoAngle(servoChannels[0][1], khuyuTrungTinh[0]);
-    setServoAngle(servoChannels[0][2], dauGoiTrungTinh[0]);
-    setServoAngle(servoChannels[3][0], vaiTrungTinh[3]);
-    setServoAngle(servoChannels[3][1], khuyuTrungTinh[3]);
-    setServoAngle(servoChannels[3][2], dauGoiTrungTinh[3]);
-    delay(stepDelay);
-
-    // Bước 4: Chân phải trước + trái sau hạ
-    setServoAngle(servoChannels[1][0], vaiTrungTinh[1]);
-    setServoAngle(servoChannels[1][1], khuyuTrungTinh[1]);
-    setServoAngle(servoChannels[1][2], dauGoiTrungTinh[1]);
-    setServoAngle(servoChannels[2][0], vaiTrungTinh[2]);
-    setServoAngle(servoChannels[2][1], khuyuTrungTinh[2]);
-    setServoAngle(servoChannels[2][2], dauGoiTrungTinh[2]);
-    setServoAngle(servoChannels[0][0], vaiTrungTinh[0]);
-    setServoAngle(servoChannels[3][0], vaiTrungTinh[3]);
-    delay(stepDelay);
+    // Bước 1: Chân trái trước (0) nâng lên
+    smoothMove(servoChannels[0][0], vaiTrungTinh[0], vaiTrungTinh[0]);
+    smoothMove(servoChannels[0][1], khuyuTrungTinh[0], khuyuTrungTinh[0] + 20); // Góc rộng hơn
+    smoothMove(servoChannels[0][2], dauGoiTrungTinh[0], dauGoiTrungTinh[0] - 35); // Góc rộng hơn
+    delay(stepDelay / 3);
+    // Khi chân trái trước sắp đặt xuống, chân phải sau (3) bắt đầu nâng lên
+    smoothMove(servoChannels[0][1], khuyuTrungTinh[0] + 20, khuyuTrungTinh[0]);
+    smoothMove(servoChannels[0][2], dauGoiTrungTinh[0] - 35, dauGoiTrungTinh[0]);
+    smoothMove(servoChannels[3][0], vaiTrungTinh[3], vaiTrungTinh[3]);
+    smoothMove(servoChannels[3][1], khuyuTrungTinh[3], khuyuTrungTinh[3] + 20);
+    smoothMove(servoChannels[3][2], dauGoiTrungTinh[3], dauGoiTrungTinh[3] - 35);
+    delay(stepDelay / 3);
+    // Khi chân phải sau sắp đặt xuống, chân phải trước (1) bắt đầu nâng lên
+    smoothMove(servoChannels[3][1], khuyuTrungTinh[3] + 20, khuyuTrungTinh[3]);
+    smoothMove(servoChannels[3][2], dauGoiTrungTinh[3] - 35, dauGoiTrungTinh[3]);
+    smoothMove(servoChannels[1][0], vaiTrungTinh[1], vaiTrungTinh[1]);
+    smoothMove(servoChannels[1][1], khuyuTrungTinh[1], khuyuTrungTinh[1] + 20);
+    smoothMove(servoChannels[1][2], dauGoiTrungTinh[1], dauGoiTrungTinh[1] - 35);
+    delay(stepDelay / 3);
+    // Khi chân phải trước sắp đặt xuống, chân trái sau (2) bắt đầu nâng lên
+    smoothMove(servoChannels[1][1], khuyuTrungTinh[1] + 20, khuyuTrungTinh[1]);
+    smoothMove(servoChannels[1][2], dauGoiTrungTinh[1] - 35, dauGoiTrungTinh[1]);
+    smoothMove(servoChannels[2][0], vaiTrungTinh[2], vaiTrungTinh[2]);
+    smoothMove(servoChannels[2][1], khuyuTrungTinh[2], khuyuTrungTinh[2] + 20);
+    smoothMove(servoChannels[2][2], dauGoiTrungTinh[2], dauGoiTrungTinh[2] - 35);
+    delay(stepDelay / 3);
+    // Hạ chân trái sau về trung tính
+    smoothMove(servoChannels[2][1], khuyuTrungTinh[2] + 20, khuyuTrungTinh[2]);
+    smoothMove(servoChannels[2][2], dauGoiTrungTinh[2] - 35, dauGoiTrungTinh[2]);
+    delay(stepDelay / 3);
 }
 
 void Robot::walkBackward(int stepDelay) {
-    // Bước 1: Chân trái trước + phải sau nâng (gập lùi)
-    setServoAngle(servoChannels[0][0], vaiTrungTinh[0]);
-    setServoAngle(servoChannels[0][1], khuyuTrungTinh[0] - 10); // Khuỷu gập lùi
-    setServoAngle(servoChannels[0][2], dauGoiTrungTinh[0] + 10); // Đầu gối nâng lùi
-    setServoAngle(servoChannels[3][0], vaiTrungTinh[3]);
-    setServoAngle(servoChannels[3][1], khuyuTrungTinh[3] - 10);
-    setServoAngle(servoChannels[3][2], dauGoiTrungTinh[3] + 10);
-    setServoAngle(servoChannels[1][0], vaiTrungTinh[1]);
-    setServoAngle(servoChannels[1][1], khuyuTrungTinh[1]);
-    setServoAngle(servoChannels[1][2], dauGoiTrungTinh[1]);
-    setServoAngle(servoChannels[2][0], vaiTrungTinh[2]);
-    setServoAngle(servoChannels[2][1], khuyuTrungTinh[2]);
-    setServoAngle(servoChannels[2][2], dauGoiTrungTinh[2]);
+    // Bước 1: Chân trái trước + phải sau nâng
+    smoothMove(servoChannels[0][1], khuyuTrungTinh[0], khuyuTrungTinh[0] - 15, 200); // Góc rộng hơn
+    smoothMove(servoChannels[0][2], dauGoiTrungTinh[0], dauGoiTrungTinh[0] + 20, 200);
+    smoothMove(servoChannels[3][1], khuyuTrungTinh[3], khuyuTrungTinh[3] - 15, 200);
+    smoothMove(servoChannels[3][2], dauGoiTrungTinh[3], dauGoiTrungTinh[3] + 20, 200);
     delay(stepDelay);
 
     // Bước 2: Chân trái trước + phải sau hạ
-    setServoAngle(servoChannels[0][0], vaiTrungTinh[0]);
-    setServoAngle(servoChannels[0][1], khuyuTrungTinh[0]);
-    setServoAngle(servoChannels[0][2], dauGoiTrungTinh[0]);
-    setServoAngle(servoChannels[3][0], vaiTrungTinh[3]);
-    setServoAngle(servoChannels[3][1], khuyuTrungTinh[3]);
-    setServoAngle(servoChannels[3][2], dauGoiTrungTinh[3]);
-    setServoAngle(servoChannels[1][0], vaiTrungTinh[1]);
-    setServoAngle(servoChannels[2][0], vaiTrungTinh[2]);
+    smoothMove(servoChannels[0][1], khuyuTrungTinh[0] - 15, khuyuTrungTinh[0], 200);
+    smoothMove(servoChannels[0][2], dauGoiTrungTinh[0] + 20, dauGoiTrungTinh[0], 200);
+    smoothMove(servoChannels[3][1], khuyuTrungTinh[3] - 15, khuyuTrungTinh[3], 200);
+    smoothMove(servoChannels[3][2], dauGoiTrungTinh[3] + 20, dauGoiTrungTinh[3], 200);
     delay(stepDelay);
 
-    // Bước 3: Chân phải trước + trái sau nâng (gập lùi)
-    setServoAngle(servoChannels[1][0], vaiTrungTinh[1]);
-    setServoAngle(servoChannels[1][1], khuyuTrungTinh[1] - 10);
-    setServoAngle(servoChannels[1][2], dauGoiTrungTinh[1] + 10);
-    setServoAngle(servoChannels[2][0], vaiTrungTinh[2]);
-    setServoAngle(servoChannels[2][1], khuyuTrungTinh[2] - 10);
-    setServoAngle(servoChannels[2][2], dauGoiTrungTinh[2] + 10);
-    setServoAngle(servoChannels[0][0], vaiTrungTinh[0]);
-    setServoAngle(servoChannels[0][1], khuyuTrungTinh[0]);
-    setServoAngle(servoChannels[0][2], dauGoiTrungTinh[0]);
-    setServoAngle(servoChannels[3][0], vaiTrungTinh[3]);
-    setServoAngle(servoChannels[3][1], khuyuTrungTinh[3]);
-    setServoAngle(servoChannels[3][2], dauGoiTrungTinh[3]);
+    // Bước 3: Chân phải trước + trái sau nâng
+    smoothMove(servoChannels[1][1], khuyuTrungTinh[1], khuyuTrungTinh[1] - 15, 200);
+    smoothMove(servoChannels[1][2], dauGoiTrungTinh[1], dauGoiTrungTinh[1] + 20, 200);
+    smoothMove(servoChannels[2][1], khuyuTrungTinh[2], khuyuTrungTinh[2] - 15, 200);
+    smoothMove(servoChannels[2][2], dauGoiTrungTinh[2], dauGoiTrungTinh[2] + 20, 200);
     delay(stepDelay);
 
     // Bước 4: Chân phải trước + trái sau hạ
-    setServoAngle(servoChannels[1][0], vaiTrungTinh[1]);
-    setServoAngle(servoChannels[1][1], khuyuTrungTinh[1]);
-    setServoAngle(servoChannels[1][2], dauGoiTrungTinh[1]);
-    setServoAngle(servoChannels[2][0], vaiTrungTinh[2]);
-    setServoAngle(servoChannels[2][1], khuyuTrungTinh[2]);
-    setServoAngle(servoChannels[2][2], dauGoiTrungTinh[2]);
-    setServoAngle(servoChannels[0][0], vaiTrungTinh[0]);
-    setServoAngle(servoChannels[3][0], vaiTrungTinh[3]);
+    smoothMove(servoChannels[1][1], khuyuTrungTinh[1] - 15, khuyuTrungTinh[1], 200);
+    smoothMove(servoChannels[1][2], dauGoiTrungTinh[1] + 20, dauGoiTrungTinh[1], 200);
+    smoothMove(servoChannels[2][1], khuyuTrungTinh[2] - 15, khuyuTrungTinh[2], 200);
+    smoothMove(servoChannels[2][2], dauGoiTrungTinh[2] + 20, dauGoiTrungTinh[2], 200);
     delay(stepDelay);
 }
 
 void Robot::walkLeft(int stepDelay) {
-    // Bước 1: Chân trái trước + phải sau nâng, vai nghiêng trái
-    setServoAngle(servoChannels[0][0], vaiTrungTinh[0] + 20); // nghiêng mạnh ra ngoài
-    setServoAngle(servoChannels[0][1], khuyuTrungTinh[0] + 10);
-    setServoAngle(servoChannels[0][2], dauGoiTrungTinh[0] - 10);
-    setServoAngle(servoChannels[3][0], vaiTrungTinh[3] + 20);
-    setServoAngle(servoChannels[3][1], khuyuTrungTinh[3] + 10);
-    setServoAngle(servoChannels[3][2], dauGoiTrungTinh[3] - 10);
-    setServoAngle(servoChannels[1][0], vaiTrungTinh[1] - 20);
-    setServoAngle(servoChannels[1][1], khuyuTrungTinh[1]);
-    setServoAngle(servoChannels[1][2], dauGoiTrungTinh[1]);
-    setServoAngle(servoChannels[2][0], vaiTrungTinh[2] - 20);
-    setServoAngle(servoChannels[2][1], khuyuTrungTinh[2]);
-    setServoAngle(servoChannels[2][2], dauGoiTrungTinh[2]);
+    // Bước 1: Chân trái trước + phải sau nâng
+    smoothMove(servoChannels[0][0], vaiTrungTinh[0], vaiTrungTinh[0] + 30, 200); // Góc rộng hơn
+    smoothMove(servoChannels[0][1], khuyuTrungTinh[0], khuyuTrungTinh[0] + 15, 200);
+    smoothMove(servoChannels[0][2], dauGoiTrungTinh[0], dauGoiTrungTinh[0] - 20, 200);
+    smoothMove(servoChannels[3][0], vaiTrungTinh[3], vaiTrungTinh[3] + 30, 200);
+    smoothMove(servoChannels[3][1], khuyuTrungTinh[3], khuyuTrungTinh[3] + 15, 200);
+    smoothMove(servoChannels[3][2], dauGoiTrungTinh[3], dauGoiTrungTinh[3] - 20, 200);
     delay(stepDelay);
 
-    // Bước 2: Chân trái trước + phải sau hạ, vai về trung tính
-    setServoAngle(servoChannels[0][0], vaiTrungTinh[0]);
-    setServoAngle(servoChannels[0][1], khuyuTrungTinh[0]);
-    setServoAngle(servoChannels[0][2], dauGoiTrungTinh[0]);
-    setServoAngle(servoChannels[3][0], vaiTrungTinh[3]);
-    setServoAngle(servoChannels[3][1], khuyuTrungTinh[3]);
-    setServoAngle(servoChannels[3][2], dauGoiTrungTinh[3]);
-    setServoAngle(servoChannels[1][0], vaiTrungTinh[1]);
-    setServoAngle(servoChannels[2][0], vaiTrungTinh[2]);
+    // Bước 2: Chân trái trước + phải sau hạ
+    smoothMove(servoChannels[0][0], vaiTrungTinh[0] + 30, vaiTrungTinh[0], 200);
+    smoothMove(servoChannels[0][1], khuyuTrungTinh[0] + 15, khuyuTrungTinh[0], 200);
+    smoothMove(servoChannels[0][2], dauGoiTrungTinh[0] - 20, dauGoiTrungTinh[0], 200);
+    smoothMove(servoChannels[3][0], vaiTrungTinh[3] + 30, vaiTrungTinh[3], 200);
+    smoothMove(servoChannels[3][1], khuyuTrungTinh[3] + 15, khuyuTrungTinh[3], 200);
+    smoothMove(servoChannels[3][2], dauGoiTrungTinh[3] - 20, dauGoiTrungTinh[3], 200);
     delay(stepDelay);
 
-    // Bước 3: Chân phải trước + trái sau nâng, vai nghiêng trái
-    setServoAngle(servoChannels[1][0], vaiTrungTinh[1] + 20);
-    setServoAngle(servoChannels[1][1], khuyuTrungTinh[1] + 10);
-    setServoAngle(servoChannels[1][2], dauGoiTrungTinh[1] - 10);
-    setServoAngle(servoChannels[2][0], vaiTrungTinh[2] + 20);
-    setServoAngle(servoChannels[2][1], khuyuTrungTinh[2] + 10);
-    setServoAngle(servoChannels[2][2], dauGoiTrungTinh[2] - 10);
-    setServoAngle(servoChannels[0][0], vaiTrungTinh[0] - 20);
-    setServoAngle(servoChannels[0][1], khuyuTrungTinh[0]);
-    setServoAngle(servoChannels[0][2], dauGoiTrungTinh[0]);
-    setServoAngle(servoChannels[3][0], vaiTrungTinh[3] - 20);
-    setServoAngle(servoChannels[3][1], khuyuTrungTinh[3]);
-    setServoAngle(servoChannels[3][2], dauGoiTrungTinh[3]);
+    // Bước 3: Chân phải trước + trái sau nâng
+    smoothMove(servoChannels[1][0], vaiTrungTinh[1], vaiTrungTinh[1] + 30, 200);
+    smoothMove(servoChannels[1][1], khuyuTrungTinh[1], khuyuTrungTinh[1] + 15, 200);
+    smoothMove(servoChannels[1][2], dauGoiTrungTinh[1], dauGoiTrungTinh[1] - 20, 200);
+    smoothMove(servoChannels[2][0], vaiTrungTinh[2], vaiTrungTinh[2] + 30, 200);
+    smoothMove(servoChannels[2][1], khuyuTrungTinh[2], khuyuTrungTinh[2] + 15, 200);
+    smoothMove(servoChannels[2][2], dauGoiTrungTinh[2], dauGoiTrungTinh[2] - 20, 200);
     delay(stepDelay);
 
-    // Bước 4: Chân phải trước + trái sau hạ, vai về trung tính
-    setServoAngle(servoChannels[1][0], vaiTrungTinh[1]);
-    setServoAngle(servoChannels[1][1], khuyuTrungTinh[1]);
-    setServoAngle(servoChannels[1][2], dauGoiTrungTinh[1]);
-    setServoAngle(servoChannels[2][0], vaiTrungTinh[2]);
-    setServoAngle(servoChannels[2][1], khuyuTrungTinh[2]);
-    setServoAngle(servoChannels[2][2], dauGoiTrungTinh[2]);
-    setServoAngle(servoChannels[0][0], vaiTrungTinh[0]);
-    setServoAngle(servoChannels[3][0], vaiTrungTinh[3]);
+    // Bước 4: Chân phải trước + trái sau hạ
+    smoothMove(servoChannels[1][0], vaiTrungTinh[1] + 30, vaiTrungTinh[1], 200);
+    smoothMove(servoChannels[1][1], khuyuTrungTinh[1] + 15, khuyuTrungTinh[1], 200);
+    smoothMove(servoChannels[1][2], dauGoiTrungTinh[1] - 20, dauGoiTrungTinh[1], 200);
+    smoothMove(servoChannels[2][0], vaiTrungTinh[2] + 30, vaiTrungTinh[2], 200);
+    smoothMove(servoChannels[2][1], khuyuTrungTinh[2] + 15, khuyuTrungTinh[2], 200);
+    smoothMove(servoChannels[2][2], dauGoiTrungTinh[2] - 20, dauGoiTrungTinh[2], 200);
     delay(stepDelay);
 }
 
 void Robot::walkRight(int stepDelay) {
-    // Bước 1: Chân trái trước + phải sau nâng, vai nghiêng phải
-    setServoAngle(servoChannels[0][0], vaiTrungTinh[0] - 20);
-    setServoAngle(servoChannels[0][1], khuyuTrungTinh[0] + 10);
-    setServoAngle(servoChannels[0][2], dauGoiTrungTinh[0] - 10);
-    setServoAngle(servoChannels[3][0], vaiTrungTinh[3] - 20);
-    setServoAngle(servoChannels[3][1], khuyuTrungTinh[3] + 10);
-    setServoAngle(servoChannels[3][2], dauGoiTrungTinh[3] - 10);
-    setServoAngle(servoChannels[1][0], vaiTrungTinh[1] + 20);
-    setServoAngle(servoChannels[1][1], khuyuTrungTinh[1]);
-    setServoAngle(servoChannels[1][2], dauGoiTrungTinh[1]);
-    setServoAngle(servoChannels[2][0], vaiTrungTinh[2] + 20);
-    setServoAngle(servoChannels[2][1], khuyuTrungTinh[2]);
-    setServoAngle(servoChannels[2][2], dauGoiTrungTinh[2]);
+    // Bước 1: Chân trái trước + phải sau nâng
+    smoothMove(servoChannels[0][0], vaiTrungTinh[0], vaiTrungTinh[0] - 30, 200); // Góc rộng hơn
+    smoothMove(servoChannels[0][1], khuyuTrungTinh[0], khuyuTrungTinh[0] + 15, 200);
+    smoothMove(servoChannels[0][2], dauGoiTrungTinh[0], dauGoiTrungTinh[0] - 20, 200);
+    smoothMove(servoChannels[3][0], vaiTrungTinh[3], vaiTrungTinh[3] - 30, 200);
+    smoothMove(servoChannels[3][1], khuyuTrungTinh[3], khuyuTrungTinh[3] + 15, 200);
+    smoothMove(servoChannels[3][2], dauGoiTrungTinh[3], dauGoiTrungTinh[3] - 20, 200);
     delay(stepDelay);
 
-    // Bước 2: Chân trái trước + phải sau hạ, vai về trung tính
-    setServoAngle(servoChannels[0][0], vaiTrungTinh[0]);
-    setServoAngle(servoChannels[0][1], khuyuTrungTinh[0]);
-    setServoAngle(servoChannels[0][2], dauGoiTrungTinh[0]);
-    setServoAngle(servoChannels[3][0], vaiTrungTinh[3]);
-    setServoAngle(servoChannels[3][1], khuyuTrungTinh[3]);
-    setServoAngle(servoChannels[3][2], dauGoiTrungTinh[3]);
-    setServoAngle(servoChannels[1][0], vaiTrungTinh[1]);
-    setServoAngle(servoChannels[2][0], vaiTrungTinh[2]);
+    // Bước 2: Chân trái trước + phải sau hạ
+    smoothMove(servoChannels[0][0], vaiTrungTinh[0] - 30, vaiTrungTinh[0], 200);
+    smoothMove(servoChannels[0][1], khuyuTrungTinh[0] + 15, khuyuTrungTinh[0], 200);
+    smoothMove(servoChannels[0][2], dauGoiTrungTinh[0] - 20, dauGoiTrungTinh[0], 200);
+    smoothMove(servoChannels[3][0], vaiTrungTinh[3] - 30, vaiTrungTinh[3], 200);
+    smoothMove(servoChannels[3][1], khuyuTrungTinh[3] + 15, khuyuTrungTinh[3], 200);
+    smoothMove(servoChannels[3][2], dauGoiTrungTinh[3] - 20, dauGoiTrungTinh[3], 200);
     delay(stepDelay);
 
-    // Bước 3: Chân phải trước + trái sau nâng, vai nghiêng phải
-    setServoAngle(servoChannels[1][0], vaiTrungTinh[1] - 20);
-    setServoAngle(servoChannels[1][1], khuyuTrungTinh[1] + 10);
-    setServoAngle(servoChannels[1][2], dauGoiTrungTinh[1] - 10);
-    setServoAngle(servoChannels[2][0], vaiTrungTinh[2] - 20);
-    setServoAngle(servoChannels[2][1], khuyuTrungTinh[2] + 10);
-    setServoAngle(servoChannels[2][2], dauGoiTrungTinh[2] - 10);
-    setServoAngle(servoChannels[0][0], vaiTrungTinh[0] + 20);
-    setServoAngle(servoChannels[0][1], khuyuTrungTinh[0]);
-    setServoAngle(servoChannels[0][2], dauGoiTrungTinh[0]);
-    setServoAngle(servoChannels[3][0], vaiTrungTinh[3] + 20);
-    setServoAngle(servoChannels[3][1], khuyuTrungTinh[3]);
-    setServoAngle(servoChannels[3][2], dauGoiTrungTinh[3]);
+    // Bước 3: Chân phải trước + trái sau nâng
+    smoothMove(servoChannels[1][0], vaiTrungTinh[1], vaiTrungTinh[1] - 30, 200);
+    smoothMove(servoChannels[1][1], khuyuTrungTinh[1], khuyuTrungTinh[1] + 15, 200);
+    smoothMove(servoChannels[1][2], dauGoiTrungTinh[1], dauGoiTrungTinh[1] - 20, 200);
+    smoothMove(servoChannels[2][0], vaiTrungTinh[2], vaiTrungTinh[2] - 30, 200);
+    smoothMove(servoChannels[2][1], khuyuTrungTinh[2], khuyuTrungTinh[2] + 15, 200);
+    smoothMove(servoChannels[2][2], dauGoiTrungTinh[2], dauGoiTrungTinh[2] - 20, 200);
     delay(stepDelay);
 
-    // Bước 4: Chân phải trước + trái sau hạ, vai về trung tính
-    setServoAngle(servoChannels[1][0], vaiTrungTinh[1]);
-    setServoAngle(servoChannels[1][1], khuyuTrungTinh[1]);
-    setServoAngle(servoChannels[1][2], dauGoiTrungTinh[1]);
-    setServoAngle(servoChannels[2][0], vaiTrungTinh[2]);
-    setServoAngle(servoChannels[2][1], khuyuTrungTinh[2]);
-    setServoAngle(servoChannels[2][2], dauGoiTrungTinh[2]);
-    setServoAngle(servoChannels[0][0], vaiTrungTinh[0]);
-    setServoAngle(servoChannels[3][0], vaiTrungTinh[3]);
+    // Bước 4: Chân phải trước + trái sau hạ
+    smoothMove(servoChannels[1][0], vaiTrungTinh[1] - 30, vaiTrungTinh[1], 200);
+    smoothMove(servoChannels[1][1], khuyuTrungTinh[1] + 15, khuyuTrungTinh[1], 200);
+    smoothMove(servoChannels[1][2], dauGoiTrungTinh[1] - 20, dauGoiTrungTinh[1], 200);
+    smoothMove(servoChannels[2][0], vaiTrungTinh[2] - 30, vaiTrungTinh[2], 200);
+    smoothMove(servoChannels[2][1], khuyuTrungTinh[2] + 15, khuyuTrungTinh[2], 200);
+    smoothMove(servoChannels[2][2], dauGoiTrungTinh[2] - 20, dauGoiTrungTinh[2], 200);
     delay(stepDelay);
 }
 
 void Robot::balance(float pitch, float roll) {
-    // TODO: implement balancing logic
+    unsigned long now = millis();
+    float dt = (now - lastTime) / 1000.0; // Thời gian chênh lệch (giây)
+    if (dt > 0.05 || dt <= 0) dt = 0.01;  // Giới hạn dt
+    lastTime = now;
+
+    // Tính toán sai số
+    float pitchError = pitch; // Sai số pitch
+    float rollError = roll;   // Sai số roll
+
+    // Tính thành phần Integral
+    pitchErrorSum += pitchError * dt;
+    rollErrorSum += rollError * dt;
+    pitchErrorSum = constrain(pitchErrorSum, -50, 50); // Giới hạn tích lũy
+    rollErrorSum = constrain(rollErrorSum, -50, 50);
+
+    // Tính thành phần Derivative
+    float pitchErrorD = (pitchError - lastPitchError) / dt;
+    float rollErrorD = (rollError - lastRollError) / dt;
+
+    // Tính điều chỉnh PID
+    float adjustPitch = Kp_pitch * pitchError + Ki_pitch * pitchErrorSum + Kd_pitch * pitchErrorD;
+    float adjustRoll = Kp_roll * rollError + Ki_roll * rollErrorSum + Kd_roll * rollErrorD;
+
+    // Cập nhật sai số trước đó
+    lastPitchError = pitchError;
+    lastRollError = rollError;
+
+    // Áp dụng điều chỉnh cho từng chân
+    for (int leg = 0; leg < 4; leg++) {
+        float adjust = 0.0;
+
+        // Điều chỉnh theo pitch
+        if (leg == 0 || leg == 1) {  // Chân trước
+            adjust -= adjustPitch;
+        } else {  // Chân sau
+            adjust += adjustPitch;
+        }
+
+        // Điều chỉnh theo roll
+        if (leg == 1 || leg == 3) {  // Chân phải
+            adjust -= adjustRoll;
+        } else {  // Chân trái
+            adjust += adjustRoll;
+        }
+
+        setServoAngle(servoChannels[leg][1], constrain(khuyuTrungTinh[leg] + adjust, 0, 180));
+        setServoAngle(servoChannels[leg][2], constrain(dauGoiTrungTinh[leg] - adjust, 0, 180));
+    }
 }

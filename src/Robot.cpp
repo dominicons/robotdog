@@ -22,19 +22,65 @@ void Robot::begin() {
 }
 
 void Robot::setServoAngle(int channel, int angle) {
+    static int lastAngles[16] = {0}; // Giả sử tối đa 16 kênh
     angle = constrain(angle, 0, 180);
-    int pulse = map(angle, 0, 180, servoMin, servoMax);
-    pwm.setPWM(channel, 0, pulse);
+    if (abs(lastAngles[channel] - angle) > 1) { // Chỉ cập nhật nếu thay đổi đủ lớn
+        int pulse = map(angle, 0, 180, servoMin, servoMax);
+        pwm.setPWM(channel, 0, pulse);
+        lastAngles[channel] = angle;
+    }
 }
 
-void Robot::smoothMove(int channel, int startAngle, int endAngle, int duration) {
-    int steps = 50; // Tăng số bước để mượt mà hơn
+void Robot::smoothMove(int channel, int startAngle, int endAngle, int duration, int steps) {
+    if (steps < 2) steps = 2;
     float stepDuration = duration / (float)steps;
     for (int i = 0; i <= steps; i++) {
         float t = i / (float)steps;
-        float angle = startAngle + (endAngle - startAngle) * (0.5 - 0.5 * cos(t * PI)); // Sử dụng cos để chuyển động mượt
+        float angle = startAngle + (endAngle - startAngle) * (0.5 - 0.5 * cos(t * PI));
         setServoAngle(channel, (int)angle);
         delay(stepDuration);
+    }
+}
+
+// Hàm smoothMove cũ để tương thích với code cũ
+void Robot::smoothMove(int channel, int startAngle, int endAngle, int duration) {
+    smoothMove(channel, startAngle, endAngle, duration, 50);
+}
+// Tripod gait: 3 chân di chuyển cùng lúc, 3 chân còn lại giữ thăng bằng
+void Robot::tripodGait(int stepDelay, int steps) {
+    // Nhóm 1: 0, 3, 2 | Nhóm 2: 1
+    // Bước 1: Nhóm 1 nâng lên, tiến về trước
+    for (int s = 0; s < steps; s++) {
+        // Nâng chân 0, 2, 3
+        smoothMove(servoChannels[0][1], khuyuTrungTinh[0], khuyuTrungTinh[0] + 20, stepDelay, 10);
+        smoothMove(servoChannels[2][1], khuyuTrungTinh[2], khuyuTrungTinh[2] + 20, stepDelay, 10);
+        smoothMove(servoChannels[3][1], khuyuTrungTinh[3], khuyuTrungTinh[3] + 20, stepDelay, 10);
+        // Tiến vai
+        smoothMove(servoChannels[0][0], vaiTrungTinh[0], vaiTrungTinh[0] + 20, stepDelay, 10);
+        smoothMove(servoChannels[2][0], vaiTrungTinh[2], vaiTrungTinh[2] + 20, stepDelay, 10);
+        smoothMove(servoChannels[3][0], vaiTrungTinh[3], vaiTrungTinh[3] + 20, stepDelay, 10);
+        // Hạ chân
+        smoothMove(servoChannels[0][1], khuyuTrungTinh[0] + 20, khuyuTrungTinh[0], stepDelay, 10);
+        smoothMove(servoChannels[2][1], khuyuTrungTinh[2] + 20, khuyuTrungTinh[2], stepDelay, 10);
+        smoothMove(servoChannels[3][1], khuyuTrungTinh[3] + 20, khuyuTrungTinh[3], stepDelay, 10);
+        delay(stepDelay);
+        // Nhóm 2: chân 1
+        smoothMove(servoChannels[1][1], khuyuTrungTinh[1], khuyuTrungTinh[1] + 20, stepDelay, 10);
+        smoothMove(servoChannels[1][0], vaiTrungTinh[1], vaiTrungTinh[1] + 20, stepDelay, 10);
+        smoothMove(servoChannels[1][1], khuyuTrungTinh[1] + 20, khuyuTrungTinh[1], stepDelay, 10);
+        delay(stepDelay);
+    }
+}
+
+// Crawl gait: từng chân di chuyển nối tiếp, các chân còn lại giữ thăng bằng
+void Robot::crawlGait(int stepDelay, int steps) {
+    for (int s = 0; s < steps; s++) {
+        for (int leg = 0; leg < 4; leg++) {
+            smoothMove(servoChannels[leg][1], khuyuTrungTinh[leg], khuyuTrungTinh[leg] + 20, stepDelay, 10);
+            smoothMove(servoChannels[leg][0], vaiTrungTinh[leg], vaiTrungTinh[leg] + 20, stepDelay, 10);
+            smoothMove(servoChannels[leg][1], khuyuTrungTinh[leg] + 20, khuyuTrungTinh[leg], stepDelay, 10);
+            delay(stepDelay);
+        }
     }
 }
 

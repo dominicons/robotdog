@@ -13,6 +13,11 @@ public:
     void walkLeft(int stepDelay = 200);
     void walkRight(int stepDelay = 200);
     void balance(float pitch, float roll);
+    void setServoAngle(int channel, int angle);
+    void smoothMove(int channel, int startAngle, int endAngle, int duration = SERVO_MOVE_DURATION);
+    void smoothMove(int channel, int startAngle, int endAngle, int duration, int steps);
+    void tripodGait(int stepDelay, int steps);
+    void crawlGait(int stepDelay, int steps);
 private:
     Adafruit_PWMServoDriver pwm;
     static const int servoMin = 150;
@@ -24,6 +29,4 @@ private:
     float Kp_pitch = 1.5, Ki_pitch = 0.1, Kd_pitch = 0.05; // Hệ số PID cho pitch
     float Kp_roll = 1.5, Ki_roll = 0.1, Kd_roll = 0.05;   // Hệ số PID cho roll
     unsigned long lastTime;
-    void setServoAngle(int channel, int angle);
-    void smoothMove(int channel, int startAngle, int endAngle, int duration = SERVO_MOVE_DURATION);
 };

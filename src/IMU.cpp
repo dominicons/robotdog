@@ -13,6 +13,9 @@ void IMU::begin() {
 void IMU::update() {
     // Đọc dữ liệu từ MPU6500, cập nhật pitch, roll
     mpu.readAngle(roll, pitch);
+    // Hiệu chỉnh offset để robot đứng thẳng thì pitch/roll ~ 0
+    pitch -= 5.13f; // Offset thực nghiệm, chỉnh lại nếu cần
+    roll  -= -0.16f;
 }
 
 float IMU::getPitch() { return pitch; }

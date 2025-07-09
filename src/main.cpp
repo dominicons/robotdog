@@ -1,11 +1,11 @@
 #include <Arduino.h>
 #include "Robot.h"
 #include "WebServer.h"
-#include "IMU.h"
+#include "IMU10DOF.h"
 
 Robot robot;
 WebServerControl web;
-IMU imu;
+IMU10DOF imu;
 
 void setup() {
     Serial.begin(115200);
@@ -16,14 +16,18 @@ void setup() {
 
 void loop() {
     web.handleClient();
-    imu.update();
+    //imu.update();
 
     String cmd = web.getCommand();
-    if (cmd == "forward") robot.walkForward();
+    if (cmd == "forward") robot.walkForwardOverlap();
+    else if (cmd == "overlap") robot.stepDiagonalPair(250, 25, 35);
+    else if (cmd == "stop") robot.stopOverlapGait();
     else if (cmd == "backward") robot.walkBackward();
     else if (cmd == "left") robot.walkLeft();
     else if (cmd == "right") robot.walkRight();
-    else if (cmd == "stop") robot.standStill();
+
+    // Cập nhật continuous overlap gait nếu đang chạy
+    robot.updateOverlapGait();
 
     // Xuất giá trị IMU ra Serial để debug
     Serial.print("Pitch: ");

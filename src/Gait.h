@@ -1,35 +1,50 @@
-#pragma once
+
+#ifndef gait_h
+#define gait_h
 #include <stdint.h>
 
-class Gait {
-public:
-    // Các tham số cấu hình động
-    float speed = 1.0f;      // Tốc độ tổng thể
-    float stepLength = 30.0f; // Biên độ bước (mm hoặc độ)
-    float stepHeight = 20.0f; // Độ nâng chân (mm hoặc độ)
-    float cycleTime = 800.0f; // Thời gian 1 chu kỳ (ms)
-    float phaseOffset[4] = {0.0f, 0.5f, 0.25f, 0.75f}; // Pha từng chân (chu kỳ)
+#include "IK.h"
+#include "transition.h"
 
-    Gait();
-    void setSpeed(float s);
-    void setStepLength(float l);
-    void setStepHeight(float h);
-    void setCycleTime(float t);
-    void setPhaseOffset(int leg, float offset);
 
-    // Hàm sinh chuyển động cho từng chân (theo thời gian t)
-    void getLegTarget(int leg, float t, float &x, float &y, float &z);
 
-    // Bézier cubic cho quỹ đạo chân
-    float bezier(float t, float P0, float P1, float P2, float P3);
+/* Gait actions */
+#define IGNORE 0 // Leg ignored
+#define STANCE 1 // Leg on ground
+#define SWING  2 // Leg off ground
 
-    // Động học thuận: từ góc khớp -> vị trí (x, y, z)
-    static void forwardKinematics(float theta1, float theta2, float theta3, float &x, float &y, float &z);
-    // Động học nghịch: từ vị trí (x, y, z) -> góc khớp
-    static bool inverseKinematics(float x, float y, float z, float &theta1, float &theta2, float &theta3);
-    // IK 2 bậc tự do: chỉ giải khuỷu và đầu gối
-    static bool inverseKinematics2DOF(float x, float y, float z, float &theta2, float &theta3);
 
-    // Jacobian: cho 1 chân, trả về ma trận 3x3 (giản lược, demo)
-    static void jacobian(float theta1, float theta2, float theta3, float J[3][3]);
+
+typedef struct gaitSequence_t {
+	uint8_t leg[4];
+} gaitSequence;
+
+typedef struct gaitConfig_t {
+	gaitSequence sequence[16];
+	uint8_t      sequenceLength;
+	double       loopTime;       // loop time to correclty calculate number of sub moves per gate item, milliseconds
+	double       offTheGround;   // in mm
+	double       swingDuration;  // duration of swing in milliseconds (1sec = 1000 millisec, 1sec = 1000000microsec)
+	double       duration;       // duration of gaitSequence item, in milliseconds (1sec = 1000 millisec), should be equal or longer than swingDuration
+} gaitConfig;
+
+class gait
+{
+	public:
+		gait(gaitConfig &config, leg &legObj);
+		void start(point from, point to);
+		double next();
+	private:
+		gaitConfig *_config;
+		leg        *_leg;
+
+		transition           _transition;
+		transitionParameters tParams;
+		
+		double   progress;
+		uint16_t ticksToStop = 0;
+		uint16_t ticksMax    = 0;
+		uint8_t  _currentGait = 255;
+	
 };
+#endif

@@ -19,9 +19,9 @@ void setup() {
 
 void loop() {
     // Hiệu ứng stepping: 2 cặp chân chéo luân phiên nâng/hạ beta, gamma
-    static int stepState = 0; // 0-15: stepping chi tiết
+    static int stepState = 0; // 0-3: stepping tổng quát
     static unsigned long lastStepTime = 0;
-    const int stepInterval = 200; // ms mỗi trạng thái nhỏ
+    const int stepInterval = 400; // ms mỗi trạng thái lớn
     const double stepDelta = 25.0 * M_PI / 180.0; // 25 độ sang radian
 
     if (millis() - lastStepTime > stepInterval) {
@@ -31,53 +31,23 @@ void loop() {
         double gammaLF = LEG_ANGLE_GAMMA, gammaRF = LEG_ANGLE_GAMMA, gammaLH = LEG_ANGLE_GAMMA, gammaRH = LEG_ANGLE_GAMMA;
 
         switch (stepState) {
-            // LF+RH nâng lên
-            case 0: // LF+RH khuỷu lên +25
-                gammaLF += stepDelta; gammaRH += stepDelta;
+            case 0: // Bước 1: LF+RH (trước) +25, RF+LH (sau) -25
+                betaLF  += stepDelta; gammaLF  += stepDelta; // LF trước
+                betaRF  += stepDelta; gammaRF  += stepDelta; // RH trước
+                betaRH  -= stepDelta; gammaRH  -= stepDelta; // RF sau
+                betaLH  -= stepDelta; gammaLH  -= stepDelta; // LH sau
                 break;
-            case 1: // LF+RH cẳng lên +25
-                gammaLF += stepDelta; gammaRH += stepDelta;
-                betaLF  += stepDelta;  betaRH  += stepDelta;
+            case 1: // Bước 2: tất cả về 0
+                // giữ nguyên góc chuẩn
                 break;
-            case 2: // về 0
+            case 2: // Bước 3: RF+LH (trước) +25, LF+RH (sau) -25
+                betaRH  += stepDelta; gammaRH  += stepDelta; // RF trước
+                betaLH  += stepDelta; gammaLH  += stepDelta; // LH trước
+                betaLF  -= stepDelta; gammaLF  -= stepDelta; // LF sau
+                betaRF  -= stepDelta; gammaRF  -= stepDelta; // RH sau
                 break;
-            case 3: // về 0
-                break;
-            // LF+RH hạ xuống
-            case 4: // LF+RH khuỷu xuống -25
-                gammaLF -= stepDelta; gammaRH -= stepDelta;
-                break;
-            case 5: // LF+RH cẳng xuống -25
-                gammaLF -= stepDelta; gammaRH -= stepDelta;
-                betaLF  -= stepDelta;  betaRH  -= stepDelta;
-                break;
-            case 6: // về 0
-                break;
-            case 7: // về 0
-                break;
-            // RF+LH nâng lên
-            case 8: // RF+LH khuỷu lên +25
-                gammaRF += stepDelta; gammaLH += stepDelta;
-                break;
-            case 9: // RF+LH cẳng lên +25
-                gammaRF += stepDelta; gammaLH += stepDelta;
-                betaRF  += stepDelta;  betaLH  += stepDelta;
-                break;
-            case 10: // về 0
-                break;
-            case 11: // về 0
-                break;
-            // RF+LH hạ xuống
-            case 12: // RF+LH khuỷu xuống -25
-                gammaRF -= stepDelta; gammaLH -= stepDelta;
-                break;
-            case 13: // RF+LH cẳng xuống -25
-                gammaRF -= stepDelta; gammaLH -= stepDelta;
-                betaRF  -= stepDelta;  betaLH  -= stepDelta;
-                break;
-            case 14: // về 0
-                break;
-            case 15: // về 0
+            case 3: // Bước 4: tất cả về 0
+                // giữ nguyên góc chuẩn
                 break;
         }
         // Gửi lệnh servo: vai giữ nguyên, chỉ cẳng và khuỷu thay đổi
@@ -96,7 +66,7 @@ void loop() {
         pwm.setPWM(SERVO_KNEE_LH, 0, angleToPulse(gammaLH));
         pwm.setPWM(SERVO_KNEE_RH, 0, angleToPulse(gammaRH));
 
-        stepState = (stepState + 1) % 16;
+        stepState = (stepState + 1) % 4;
     }
     delay(10);
 }
